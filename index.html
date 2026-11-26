@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Giám Sát Mực Nước</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Bố cục: một cột trên điện thoại; bể nước bên trái, số đo bên phải khi đủ rộng. Màu nước đổi theo mức. */
+  :root {
+    --bg: #eaf0f2;
+    --surface: #ffffff;
+    --surface-2: #f3f7f8;
+    --ink: #11262d;
+    --muted: #587079;
+    --line: #d3dee2;
+    --water: #2a86ad;
+    --water-soft: #cfe6f0;
+    --ok: #1b8a5a;
+    --warn: #a86a0c;
+    --crit: #c23a2b;
+    --accent: #11627f;
+    --accent-ink: #ffffff;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b181d; --surface: #12252c; --surface-2: #0f2026; --ink: #e2eef2; --muted: #8fa9b2;
+      --line: #23404a; --water: #3fa3cc; --water-soft: #153843; --ok: #4cc58d; --warn: #e0a247;
+      --crit: #ff7a68; --accent: #5cc0e6; --accent-ink: #062029; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b181d; --surface: #12252c; --surface-2: #0f2026; --ink: #e2eef2; --muted: #8fa9b2;
+    --line: #23404a; --water: #3fa3cc; --water-soft: #153843; --ok: #4cc58d; --warn: #e0a247;
+    --crit: #ff7a68; --accent: #5cc0e6; --accent-ink: #062029; color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+    padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  * { box-sizing: border-box; }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.25rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 0.8125rem; margin: 2px 0 0; }
+  .conn { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: var(--surface);
+    border: 1px solid var(--line); font-size: 0.8125rem; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill[data-s="on"] { color: var(--ok); } .pill[data-s="on"] .dot { background: var(--ok); }
+  .pill[data-s="demo"] { color: var(--warn); } .pill[data-s="demo"] .dot { background: var(--warn); }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    padding: 9px 14px; min-height: 40px; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .banner { padding: 11px 14px; border-radius: 10px; border: 1px solid var(--crit); color: var(--crit); background: var(--surface); font-weight: 500; }
+  .note { padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 0.875rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .main { display: grid; grid-template-columns: 170px 1fr; gap: 22px; align-items: center; }
+  .tankbox { display: flex; justify-content: center; }
+  svg.tank { width: 100%; max-width: 170px; height: auto; overflow: visible; }
+  .tank-shell { fill: var(--surface-2); stroke: var(--ink); stroke-width: 2.5; }
+  .water { fill: var(--water); transition: transform 0.9s ease, fill 0.4s; }
+  .tick { stroke: var(--ink); stroke-width: 1; opacity: 0.35; }
+  .ticklbl { fill: var(--muted); font: 500 9px var(--font-num); }
+  .readout { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .big { font-family: var(--font-num); font-weight: 600; font-size: clamp(3rem, 14vw, 4.75rem); line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .big small { font-size: 0.4em; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+  .badge { display: inline-block; align-self: flex-start; padding: 5px 12px; border-radius: 8px; font-weight: 600; font-size: 0.9375rem;
+    border: 1.5px solid currentColor; }
+  .badge[data-l="tb"], .badge[data-l="day"] { color: var(--ok); }
+  .badge[data-l="thap"] { color: var(--warn); }
+  .badge[data-l="can"], .badge[data-l="tran"], .badge[data-l="loi"] { color: var(--crit); }
+  .badge[data-l="none"] { color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stat { background: var(--surface-2); border-radius: 10px; padding: 9px 11px; min-width: 0; }
+  .stat .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat .v { font-family: var(--font-num); font-weight: 600; font-size: 1.0625rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  svg.spark { width: 100%; height: 90px; display: block; }
+  .spark-line { fill: none; stroke: var(--water); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .spark-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 4; }
+  .spark-lbl { fill: var(--muted); font: 500 9px var(--font-num); }
+  ul.log { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-family: var(--font-num); font-size: 0.78rem; }
+  ul.log li { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  ul.log time { color: var(--muted); flex: none; }
+  ul.log span { min-width: 0; overflow-wrap: anywhere; }
+  ul.log li.crit span { color: var(--crit); } ul.log li.warn span { color: var(--warn); }
+  .empty { color: var(--muted); font-size: 0.875rem; }
+  footer { color: var(--muted); font-size: 0.78rem; }
+  @media (max-width: 520px) {
+    .main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .readout { align-items: center; width: 100%; } .badge { align-self: center; }
+    svg.tank { max-width: 130px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .water { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Giám sát mực nước</h1>
+      <p class="sub">Arduino UNO R3 · HC-SR04 · Bluetooth BLE</p>
+    </div>
+    <div class="conn">
+      <span class="pill" id="pill" data-s="off"><span class="dot"></span><span id="pillTxt">Chưa kết nối</span></span>
+      <button class="primary" id="btnConnect">Kết nối</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="alert" hidden></div>
+  <div class="note" id="note" hidden></div>
+
+  <section class="card main" aria-label="Mực nước hiện tại">
+    <div class="tankbox">
+      <svg class="tank" viewBox="0 0 150 230" role="img" aria-label="Hình bể nước" id="tankSvg">
+        <defs><clipPath id="clip"><rect x="14" y="10" width="100" height="200" rx="10"/></clipPath></defs>
+        <rect class="tank-shell" x="14" y="10" width="100" height="200" rx="10"/>
+        <g clip-path="url(#clip)"><rect class="water" id="water" x="14" y="10" width="100" height="200" style="transform: translateY(200px)"/></g>
+        <rect x="14" y="10" width="100" height="200" rx="10" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+        <g id="ticks"></g>
+      </svg>
+    </div>
+    <div class="readout">
+      <div class="big" id="pct" aria-live="polite">--<small>%</small></div>
+      <span class="badge" id="badge" data-l="none">Chưa có dữ liệu</span>
+      <div class="stats">
+        <div class="stat"><div class="k">Khoảng cách</div><div class="v" id="kc">-- cm</div></div>
+        <div class="stat"><div class="k">Xu hướng</div><div class="v" id="xh">--</div></div>
+        <div class="stat"><div class="k">Còi</div><div class="v" id="coi">--</div></div>
+      </div>
+      <div class="actions">
+        <button id="btnS" disabled>Cập nhật ngay</button>
+        <button id="btnM" disabled>Tắt / bật còi</button>
+        <button id="btnDemo">Chạy thử</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Mực nước theo thời gian</h2>
+    <svg class="spark" id="spark" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="Biểu đồ mực nước">
+      <line class="spark-grid" x1="0" x2="300" y1="63" y2="63"/><line class="spark-grid" x1="0" x2="300" y1="21" y2="21"/>
+      <polyline class="spark-line" id="line" points=""/>
+    </svg>
+    <p class="empty" id="sparkEmpty">Biểu đồ hiện khi nhận được vài số liệu đầu tiên. Đường nét đứt là mốc 30% và 70%.</p>
+  </section>
+
+  <section class="card">
+    <h2>Thông báo từ mạch</h2>
+    <ul class="log" id="log"></ul>
+    <p class="empty" id="logEmpty">Chưa có thông báo. Sau khi kết nối, mạch gửi thông báo khi mực nước đổi mức, khi nước sụt nhanh và mỗi 60 giây.</p>
+  </section>
+
+  <footer>Lệnh gửi cho mạch: S = trạng thái, M = tắt/bật còi, H = trợ giúp. Mức: cạn dưới 10%, thấp 10–30%, trung bình 30–70%, đầy 70–95%, sắp tràn từ 95%.</footer>
+</div>
+
+<script>
+(function () {
+  var SERVICE = 0xFFE0, CHAR = 0xFFE1;
+  var LEVEL_NAME = { can: 'Cạn nước', thap: 'Mức nước thấp', tb: 'Mức trung bình', day: 'Nước đầy đủ', tran: 'Sắp tràn', loi: 'Lỗi cảm biến', none: 'Chưa có dữ liệu' };
+  var NAME_TO_LEVEL = { 'CAN NUOC': 'can', 'MUC NUOC THAP': 'thap', 'MUC TRUNG BINH': 'tb', 'NUOC DAY DU': 'day', 'SAP TRAN': 'tran', 'LOI CAM BIEN': 'loi' };
+  var $ = function (id) { return document.getElementById(id); };
+
+  var device = null, server = null, ch = null, buf = '', pollTimer = null, demoTimer = null, history = [], muted = null;
+
+  // ----- vạch mốc trên bể -----
+  var ticks = '';
+  [10, 30, 70, 95].forEach(function (p) {
+    var y = 10 + 200 * (1 - p / 100);
+    ticks += '<line class="tick" x1="114" x2="122" y1="' + y + '" y2="' + y + '"/><text class="ticklbl" x="126" y="' + (y + 3) + '">' + p + '%</text>';
+  });
+  $('ticks').innerHTML = ticks;
+
+  function setPill(state, text) { $('pill').dataset.s = state; $('pillTxt').textContent = text; }
+  function showNote(t) { var n = $('note'); n.hidden = !t; n.textContent = t || ''; }
+  function setConnected(on) {
+    $('btnS').disabled = !on; $('btnM').disabled = !on;
+    $('btnConnect').textContent = on ? 'Ngắt kết nối' : 'Kết nối';
+  }
+
+  // ----- hiển thị dữ liệu -----
+  function render(d) {
+    var l = d.level;
+    $('badge').dataset.l = l; $('badge').textContent = LEVEL_NAME[l] || '--';
+    if (d.pct != null) {
+      $('pct').innerHTML = d.pct + '<small>%</small>';
+      $('water').style.transform = 'translateY(' + ((100 - d.pct) * 2) + 'px)';
+    } else { $('pct').innerHTML = '--<small>%</small>'; }
+    $('kc').textContent = d.kc != null ? d.kc.toFixed(1) + ' cm' : '-- cm';
+    $('xh').textContent = d.trend || '--';
+    var color = (l === 'can' || l === 'tran' || l === 'loi') ? 'var(--crit)' : (l === 'thap' ? 'var(--warn)' : 'var(--water)');
+    $('water').style.fill = color;
+    var b = $('banner');
+    if (l === 'can' || l === 'tran' || l === 'loi') {
+      b.hidden = false;
+      b.textContent = l === 'can' ? 'Khẩn cấp: bể gần cạn, cần cấp nước.' : (l === 'tran' ? 'Khẩn cấp: nước sắp tràn, cần ngừng cấp.' : 'Lỗi cảm biến: kiểm tra dây HC-SR04.');
+      try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+    } else { b.hidden = true; }
+    if (d.pct != null) { history.push(d.pct); if (history.length > 60) history.shift(); drawSpark(); }
+  }
+
+  function drawSpark() {
+    if (history.length < 2) return;
+    $('sparkEmpty').hidden = true;
+    var n = history.length, pts = history.map(function (v, i) {
+      return (i / (n - 1) * 300).toFixed(1) + ',' + (84 - v * 0.78).toFixed(1);
+    }).join(' ');
+    $('line').setAttribute('points', pts);
+  }
+
+  function addLog(text, cls) {
+    $('logEmpty').hidden = true;
+    var li = document.createElement('li'); if (cls) li.className = cls;
+    var t = document.createElement('time'); t.textContent = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+    var s = document.createElement('span'); s.textContent = text;
+    li.appendChild(t); li.appendChild(s);
+    var log = $('log'); log.insertBefore(li, log.firstChild);
+    while (log.children.length > 40) log.removeChild(log.lastChild);
+  }
+
+  // ----- phân tích dòng chữ từ Arduino -----
+  function handleLine(line) {
+    line = line.trim(); if (!line) return;
+    var m = /^\[(KHAN CAP|CANH BAO|OK|LOI)\]\s*(.*)$/.exec(line);
+    if (/Da tat coi/i.test(line)) { muted = true; $('coi').textContent = 'Đã tắt'; addLog('Đã tắt còi'); return; }
+    if (/Da bat coi/i.test(line)) { muted = false; $('coi').textContent = 'Đang bật'; addLog('Đã bật còi'); return; }
+    if (m && /sut nhanh/i.test(m[2])) { addLog('Nước sụt nhanh, nghi rò rỉ hoặc đang xả nước', 'warn'); return; }
+    if (!m) { addLog(line); return; }
+    var parts = m[2].split('|').map(function (s) { return s.trim(); });
+    var level = NAME_TO_LEVEL[parts[0]] || (m[1] === 'LOI' ? 'loi' : null);
+    if (!level) { addLog(line); return; }
+    var d = { level: level, pct: null, kc: null, trend: null };
+    parts.slice(1).forEach(function (p) {
+      var a;
+      if ((a = /^Muc:\s*(\d+)%/.exec(p))) d.pct = parseInt(a[1], 10);
+      else if ((a = /^KC:\s*([\d.]+)\s*cm/.exec(p))) d.kc = parseFloat(a[1]);
+      else if (/Dang tang/.test(p)) d.trend = 'Đang tăng';
+      else if (/Dang giam/.test(p)) d.trend = 'Đang giảm';
+      else if (/On dinh/.test(p)) d.trend = 'Ổn định';
+    });
+    render(d);
+    var txt = LEVEL_NAME[level] + (d.pct != null ? ' · ' + d.pct + '%' : '') + (d.kc != null ? ' · ' + d.kc.toFixed(1) + ' cm' : '');
+    addLog(txt, (level === 'can' || level === 'tran' || level === 'loi') ? 'crit' : (level === 'thap' ? 'warn' : ''));
+  }
+
+  function onChunk(text) {
+    buf += text;
+    var i;
+    while ((i = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, i)); buf = buf.slice(i + 1); }
+    if (buf.length > 300) buf = '';
+  }
+
+  // ----- Bluetooth BLE (Web Bluetooth) -----
+  async function send(text) {
+    if (!ch) return;
+    var bytes = new TextEncoder().encode(text);
+    for (var i = 0; i < bytes.length; i += 20) {
+      var part = bytes.slice(i, i + 20);
+      if (ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(part); else await ch.writeValue(part);
+    }
+  }
+
+  async function connect() {
+    if (!navigator.bluetooth) {
+      showNote('Trình duyệt này chưa hỗ trợ Web Bluetooth. Hãy mở trang bằng Chrome trên điện thoại Android (iPhone chưa dùng được). Bạn vẫn xem thử giao diện bằng nút "Chạy thử".');
+      return;
+    }
+    stopDemo(); showNote('');
+    try {
+      setPill('off', 'Đang tìm module...');
+      device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE] });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+      setPill('off', 'Đang kết nối...');
+      server = await device.gatt.connect();
+      var svc = await server.getPrimaryService(SERVICE);
+      ch = await svc.getCharacteristic(CHAR);
+      await ch.startNotifications();
+      var dec = new TextDecoder();
+      ch.addEventListener('characteristicvaluechanged', function (e) { onChunk(dec.decode(e.target.value)); });
+      setPill('on', 'Đã kết nối ' + (device.name || 'module'));
+      setConnected(true); addLog('Đã kết nối với ' + (device.name || 'module'));
+      await send('S');
+      pollTimer = setInterval(function () { send('S').catch(function () {}); }, 4000);
+    } catch (err) {
+      setPill('off', 'Chưa kết nối'); setConnected(false);
+      var msg = String(err && err.message || err);
+      if (err && err.name === 'NotFoundError') showNote('Bạn chưa chọn thiết bị nào, hoặc không tìm thấy module. Kiểm tra module đã có nguồn và đèn đang nháy.');
+      else if (err && (err.name === 'SecurityError' || /permissions policy|not allowed/i.test(msg))) showNote('Khung xem này chặn Bluetooth. Hãy mở trang trực tiếp bằng Chrome trên Android (không mở trong khung nhúng) rồi bấm Kết nối lại.');
+      else showNote('Không kết nối được: ' + msg);
+    }
+  }
+
+  function onDisconnected() {
+    clearInterval(pollTimer); pollTimer = null; ch = null;
+    setPill('off', 'Mất kết nối'); setConnected(false); addLog('Mất kết nối với module', 'warn');
+  }
+  function disconnect() { clearInterval(pollTimer); if (device && device.gatt.connected) device.gatt.disconnect(); }
+
+  // ----- chạy thử (mô phỏng, dùng đúng bộ phân tích như dữ liệu thật) -----
+  function stopDemo() { if (demoTimer) { clearInterval(demoTimer); demoTimer = null; $('btnDemo').textContent = 'Chạy thử'; } }
+  function startDemo() {
+    if (device && device.gatt.connected) disconnect();
+    showNote('Đang chạy mô phỏng. Số liệu bên dưới không phải từ mạch thật.');
+    setPill('demo', 'Chế độ chạy thử'); $('btnDemo').textContent = 'Dừng chạy thử';
+    history = []; var t = 0, prev = 55;
+    function tick() {
+      t += 1;
+      var pct = Math.round(52 + 50 * Math.sin(t / 7)); pct = Math.max(2, Math.min(100, pct));
+      var kc = 9.3 - pct / 100 * 4.8;
+      var name = pct < 10 ? 'CAN NUOC' : pct < 30 ? 'MUC NUOC THAP' : pct < 70 ? 'MUC TRUNG BINH' : pct < 95 ? 'NUOC DAY DU' : 'SAP TRAN';
+      var pre = (pct < 10 || pct >= 95) ? '[KHAN CAP] ' : pct < 30 ? '[CANH BAO] ' : '[OK] ';
+      var tr = pct > prev ? ' | Dang tang' : (pct < prev ? ' | Dang giam' : ' | On dinh'); prev = pct;
+      onChunk(pre + name + ' | Muc: ' + pct + '% | KC: ' + kc.toFixed(1) + 'cm' + tr + '\r\n');
+    }
+    tick(); demoTimer = setInterval(tick, 1200);
+  }
+
+  // ----- nút bấm -----
+  $('btnConnect').addEventListener('click', function () { if (device && device.gatt && device.gatt.connected) disconnect(); else connect(); });
+  $('btnS').addEventListener('click', function () { send('S').catch(function (e) { showNote('Gửi lệnh lỗi: ' + e.message); }); });
+  $('btnM').addEventListener('click', function () { send('M').catch(function (e) { showNote('Gửi lệnh lỗi: ' + e.message); }); });
+  $('btnDemo').addEventListener('click', function () {
+    if (demoTimer) { stopDemo(); setPill('off', 'Chưa kết nối'); showNote(''); } else startDemo();
+  });
+
+  if (!navigator.bluetooth) showNote('Trình duyệt này chưa hỗ trợ Web Bluetooth. Dùng Chrome trên Android để kết nối mạch. Nút "Chạy thử" vẫn xem được giao diện.');
+  render({ level: 'none', pct: null, kc: null, trend: null });
+})();
+</script>
+
+</body>
+</html>
